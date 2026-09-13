@@ -13,7 +13,6 @@
 		<Panel id="Dot" class="dot_bits crosshair__dot" />
 		<Panel id="NoReticle" />
         <!-- speedometer -->
-        <!-- <Label id="speedometerDebug" text="" /> -->
 		<Panel id="speedometerContainer" hittest="false" >
             <Label id="speedometerLabel" text="" />
         </Panel>
