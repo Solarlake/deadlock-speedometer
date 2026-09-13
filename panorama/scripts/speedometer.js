@@ -18,15 +18,13 @@
     const TELEPORT_THRESHOLD = 0.15; // pip units per second, above which assume the player teleported and reset the sample window
 
     // speed smoothing parameters
-    const SPEED_EMA_TAU_SEC = 0.11;    // EMA time constant: larger = smoother but laggier
+    const SPEED_EMA_TAU_SEC = 0.11; // EMA time constant: larger = smoother but laggier
     const SPEED_DEADBAND_FRAC = 0.07; // fraction of current speed treated as noise, damped harder
-    // const SPEED_REST_THRESHOLD = 0.5; // px/s below which we snap straight to rest instead of decaying
-    const SPEED_REST_THRESHOLD = 100; // px/s below which we snap straight to rest instead of decaying
-    let smoothedSpeed = null;   // px/s, EMA-smoothed speed (persists across ticks)
-    let lastSpeedTimeMs = null; // timestamp of the last accepted speed sample, for dt-aware smoothing
+    const SPEED_REST_THRESHOLD = 100; // speed below which to snap straight to rest instead of decaying
+    let smoothedSpeed = null;
+    let lastSpeedTimeMs = null;
     
     // speed conversion
-    // const PIP_TO_UNITS = 21519.876;
     const PIP_TO_UNITS = 21500;
 
     // speedometer colors
@@ -65,6 +63,7 @@
     }
 
     function update() {
+        // don't show speedometer in hideout because it doesn't work
         if (isConnectedToHideout(root)) {
             speedometerLabel.text = "";
             return;
@@ -73,7 +72,7 @@
         const pos = minimapPip.GetPositionWithinWindow();
         const windowWidth = minimap.actuallayoutwidth;
         const windowHeight = minimap.actuallayoutheight;
-        const t = Date.now ? Date.now() : (new Date()).getTime(); // milliseconds since epoch
+        const t = Date.now ? Date.now() : (new Date()).getTime(); // ms
         const x = pos.x / windowWidth;
         const y = pos.y / windowHeight;
         pos_samples.push({ t, x, y });
@@ -81,7 +80,7 @@
             pos_samples.shift();
         }
         
-        // do thing if there are at least 2 samples to work with
+        // do the thing if there are at least 2 samples to work with
         if (pos_samples.length >= 2) {
             let maxDiff = 0;
             // get max difference between adjacent samples
@@ -123,7 +122,7 @@
             
             // convert from minimap units to speed units (px/ms to u/s)
             const raw2DSpeed = Math.sqrt(vx * vx + vy * vy) * 1000;
-            const rawSpeed = raw2DSpeed * PIP_TO_UNITS; // pip units -> u/s
+            const rawSpeed = raw2DSpeed * PIP_TO_UNITS; // minimap pip units -> u/s
             
             // smooth raw speed noise
             let dtSmoothSec = (lastSpeedTimeMs !== null) ? (t - lastSpeedTimeMs) / 1000.0 : TICK_INTERVAL;
@@ -169,17 +168,6 @@
                 const toHex = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0");
                 speedometerLabel.style.color = `#${toHex(r)}${toHex(g)}${toHex(b)}FF`;
                 speedometerLabel.text = smoothedSpeed.toFixed(0);
-
-                // const speedometerDebug = root.FindChildTraverse("speedometerDebug");
-                // speedometerDebug.text = `
-                //     pos: (${x.toFixed(2)}, ${y.toFixed(2)})
-                //     raw minimap speed: (${raw2DSpeed.toFixed(10)} px/s)
-                //     max difference: (${maxDiff.toFixed(10)} u/s)
-                //     raw speed: (${rawSpeed.toFixed(2)} u/s)
-                //     smoothed speed: (${smoothedSpeed.toFixed(2)} u/s)
-                //     window size: (${windowWidth}, ${windowHeight})
-                //     rgb: (${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})
-                // `;
             }
         }
     }
