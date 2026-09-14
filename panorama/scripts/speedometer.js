@@ -4,10 +4,12 @@
     const TICK_INTERVAL = 0.015625; // seconds between updates (64 ticks per second)
 
     // UI element IDs and classes
+    const WINDOW_ROOT_CLASS = "WindowRoot";
     const SPEEDOMETER_LABEL_ID = "speedometerLabel";
     const MINIMAP_PIP_CLASS = "client_cone_fov";
     const MINIMAP_CLASS = "HudMinimapContainer";
     let root = null;
+    let windowRoot = null;
     let speedometerLabel = null;
     let minimapPip = null;
     let minimap = null;
@@ -39,6 +41,9 @@
         root = findRoot($.GetContextPanel());
         if (!root) return $.Schedule(0.5, boot);
 
+        windowRoot = root.FindChildrenWithClassTraverse(WINDOW_ROOT_CLASS)[0];
+        if (!windowRoot) return $.Schedule(0.5, boot);
+
         speedometerLabel = root.FindChildTraverse(SPEEDOMETER_LABEL_ID);
         if (!speedometerLabel) return $.Schedule(0.5, boot);
         
@@ -67,6 +72,14 @@
         if (isConnectedToHideout(root)) {
             speedometerLabel.text = "";
             return;
+        }
+
+        // fix centering on 1080p and lower resolutions
+        if (windowRoot.actuallayoutheight <= 1080) {
+            speedometerLabel.style.x = "1px";
+        }
+        else {
+            speedometerLabel.style.x = "0px";
         }
 
         const pos = minimapPip.GetPositionWithinWindow();
@@ -122,7 +135,7 @@
             
             // convert from minimap units to speed units (px/ms to u/s)
             const raw2DSpeed = Math.sqrt(vx * vx + vy * vy) * 1000;
-            const rawSpeed = raw2DSpeed * PIP_TO_UNITS; // minimap pip units -> u/s
+            const rawSpeed = raw2DSpeed * PIP_TO_UNITS; // minimap units -> u/s
             
             // smooth raw speed noise
             let dtSmoothSec = (lastSpeedTimeMs !== null) ? (t - lastSpeedTimeMs) / 1000.0 : TICK_INTERVAL;
@@ -168,6 +181,19 @@
                 const toHex = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0");
                 speedometerLabel.style.color = `#${toHex(r)}${toHex(g)}${toHex(b)}FF`;
                 speedometerLabel.text = smoothedSpeed.toFixed(0);
+
+                // const speedometerDebug = root.FindChildTraverse("speedometerDebug");
+                // speedometerDebug.text = `
+                //     pos: (${x.toFixed(2)}, ${y.toFixed(2)})
+                //     raw minimap speed: (${raw2DSpeed.toFixed(10)} px/s)
+                //     max difference: (${maxDiff.toFixed(10)} u/s)
+                //     raw speed: (${rawSpeed.toFixed(2)} u/s)
+                //     smoothed speed: (${smoothedSpeed.toFixed(2)} u/s)
+                //     window size: (${windowWidth}, ${windowHeight})
+                //     game resolution: (${windowRoot.actuallayoutwidth}, ${windowRoot.actuallayoutheight})
+                //     offset by 1px: (${windowRoot.actuallayoutheight <= 1080})
+                //     rgb: (${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})
+                // `;
             }
         }
     }
