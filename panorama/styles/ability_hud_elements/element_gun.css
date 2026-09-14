@@ -777,6 +777,7 @@
 
 #speedometerContainer
 {
+    x: 1px;
     y: 37px;
     width: 50px;
     height: 50px;
@@ -789,6 +790,7 @@
     vertical-align: center;
     horizontal-align: center;
     font-family: oracle;
+    color: rgb(235, 235, 235);
 }
 
 #ammo_panel
