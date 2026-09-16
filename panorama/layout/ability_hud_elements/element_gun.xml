@@ -14,7 +14,8 @@
 		<Panel id="NoReticle" />
         <!-- speedometer -->
         <!-- <Label id="speedometerDebug" text="" /> -->
-        <Panel id="speedometerContainer" style="y: 37px; width: 50px; height: 50px; vertical-align: center; horizontal-align: center;">
+        <!-- <Panel id="speedometerContainer" style="y: 112px; width: 64px; height: 64px; vertical-align: center; horizontal-align: center;"> -->
+        <Panel id="speedometerContainer" style="y: 37px; width: 64px; height: 64px; vertical-align: center; horizontal-align: center;">
             <Label id="speedometerLabel" style="vertical-align: center; horizontal-align: center; font-family: oracle; color: rgb(235,235,235);" />
         </Panel>
         <!-- speedometer -->
