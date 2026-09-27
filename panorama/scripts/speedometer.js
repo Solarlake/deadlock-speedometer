@@ -2,6 +2,7 @@
     // tick scheduling
     let tickHandler = null;
     const TICK_INTERVAL = 0.015625; // seconds between updates (64 ticks per second)
+    const MIN_SAMPLE_DT_MS = 1000 * TICK_INTERVAL * 0.5; // minimum time between samples to consider them valid (half a tick)
 
     // UI element IDs and classes
     const GAMEPLAY_HUD_ID = "gameplay_hud";
@@ -92,12 +93,18 @@
         if (pos_samples.length > MAX_SAMPLES) {
             pos_samples.shift();
         }
-        
+
         // do the thing if there are at least 2 samples to work with
         if (pos_samples.length >= 2) {
+            // discard the last sample if it's too close in time to the previous one
+            const lastSample = pos_samples[pos_samples.length - 1];
+            const prevSample = pos_samples[pos_samples.length - 2];
+            if (lastSample.t - prevSample.t < MIN_SAMPLE_DT_MS) {
+                pos_samples.pop();
+            }
+
             let maxDiff = 0;
-            // get max difference between adjacent samples
-            for (let i = 1; i < pos_samples.length; i++) {
+            for (let i = 1; i < pos_samples.length; i++) { // get max difference between adjacent samples
                 const dx = pos_samples[i].x - pos_samples[i - 1].x;
                 const dy = pos_samples[i].y - pos_samples[i - 1].y;
                 const dt = (pos_samples[i].t - pos_samples[i - 1].t) / 1000.0;
@@ -147,9 +154,8 @@
                 let alpha = 1.0 - Math.exp(-dtSmoothSec / SPEED_EMA_TAU_SEC);
                 const sdelta = rawSpeed - smoothedSpeed;
 
-                // Within the deadband, damp harder so a steady speed reads as a steady number instead of visibly wobbling.
                 if (Math.abs(sdelta) < smoothedSpeed * SPEED_DEADBAND_FRAC) {
-                    alpha *= 0.25;
+                    alpha *= 0.25; // within the deadband, damp harder so a steady speed reads as a steady number
                 }
                 if (rawSpeed < SPEED_REST_THRESHOLD) alpha = 1.0; // snap to rest
 
