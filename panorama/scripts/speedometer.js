@@ -2,17 +2,16 @@
     // tick scheduling
     let tickHandler = null;
     const TICK_INTERVAL = 0.015625; // seconds between updates (64 ticks per second)
-    const MIN_SAMPLE_DT_MS = 1000 * TICK_INTERVAL * 0.5; // minimum time between samples to consider them valid (half a tick)
 
     // UI element IDs and classes
     const GAMEPLAY_HUD_ID = "gameplay_hud";
     const SPEEDOMETER_LABEL_ID = "speedometerLabel";
-    const MINIMAP_PIP_CLASS = "client_cone_fov";
+    const MINIMAP_CONE_CLASS = "client_cone_fov";
     const MINIMAP_CLASS = "HudMinimapContainer";
     let root = null;
     let gameplayHUD = null;
     let speedometerLabel = null;
-    let minimapPip = null;
+    let cone = null;
     let minimap = null;
 
     // minimap position sampling
@@ -39,7 +38,7 @@
     ];
 
     function boot() {
-        root = findRoot($.GetContextPanel());
+        root = _findRoot($.GetContextPanel());
         if (!root) return $.Schedule(0.5, boot);
 
         gameplayHUD = root.FindChildTraverse(GAMEPLAY_HUD_ID);
@@ -48,8 +47,8 @@
         speedometerLabel = root.FindChildTraverse(SPEEDOMETER_LABEL_ID);
         if (!speedometerLabel) return $.Schedule(0.5, boot);
         
-        minimapPip = root.FindChildrenWithClassTraverse(MINIMAP_PIP_CLASS)[0];
-        if (!minimapPip) return $.Schedule(0.5, boot);
+        cone = root.FindChildrenWithClassTraverse(MINIMAP_CONE_CLASS)[0];
+        if (!cone) return $.Schedule(0.5, boot);
         
         minimap = root.FindChildTraverse(MINIMAP_CLASS);
         if (!minimap) return $.Schedule(0.5, boot);
@@ -63,27 +62,29 @@
     }
 
     function tick() {
-        if (!root) root = findRoot($.GetContextPanel());
+        if (!root) root = _findRoot($.GetContextPanel());
         update();
         scheduleTick();
     }
 
     function update() {
         // don't show speedometer in hideout because it doesn't work
-        if (isConnectedToHideout(root)) {
+        if (_isConnectedToHideout(root)) {
             speedometerLabel.text = "";
             return;
         }
 
         // fix centering on 1080p and lower resolutions
-        if (gameplayHUD.actuallayoutheight <= 1080) {
-            speedometerLabel.style.x = "1px";
-        }
-        else {
-            speedometerLabel.style.x = "0px";
-        }
+        speedometerLabel.style.x = gameplayHUD.actuallayoutheight <= 1080 ? "1px" : "0px";
 
-        const pos = minimapPip.GetPositionWithinWindow();
+        // fallback to local player if cone doesn't exist (e.g. QOLLock with minimal minimap)
+        let pos = cone.GetPositionWithinWindow();
+        if (pos.x > 3.4e38 || pos.x < -3.4e38) {
+            let localPlayer = root.FindChildrenWithClassTraverse("localplayer")[0];
+            pos = localPlayer ? localPlayer.GetPositionWithinWindow() : { x: 0, y: 0 };
+        }
+        
+        // sample the minimap position
         const minimapWidth = minimap.actuallayoutwidth;
         const minimapHeight = minimap.actuallayoutheight;
         const t = Date.now ? Date.now() : (new Date()).getTime(); // ms
@@ -96,15 +97,9 @@
 
         // do the thing if there are at least 2 samples to work with
         if (pos_samples.length >= 2) {
-            // discard the last sample if it's too close in time to the previous one
-            const lastSample = pos_samples[pos_samples.length - 1];
-            const prevSample = pos_samples[pos_samples.length - 2];
-            if (lastSample.t - prevSample.t < MIN_SAMPLE_DT_MS) {
-                pos_samples.pop();
-            }
-
+            // get max difference between adjacent samples
             let maxDiff = 0;
-            for (let i = 1; i < pos_samples.length; i++) { // get max difference between adjacent samples
+            for (let i = 1; i < pos_samples.length; i++) {
                 const dx = pos_samples[i].x - pos_samples[i - 1].x;
                 const dy = pos_samples[i].y - pos_samples[i - 1].y;
                 const dt = (pos_samples[i].t - pos_samples[i - 1].t) / 1000.0;
@@ -113,9 +108,8 @@
                     maxDiff = diff;
                 }
             }
-            // if the player teleported, reset the sample window to avoid a huge speed spike
             if (maxDiff > TELEPORT_THRESHOLD) {
-                pos_samples = [pos_samples[pos_samples.length - 1]];
+                pos_samples = [pos_samples[pos_samples.length - 1]]; // if the player teleported, reset the sample window to avoid a huge speed spike
             }
             
             // least-squares regression to estimate velocity from minimap px samples
@@ -128,7 +122,6 @@
             meanT /= pos_samples.length;
             meanX /= pos_samples.length;
             meanY /= pos_samples.length;
-
             let Stt = 0, Stx = 0, Sty = 0;
             for (const sample of pos_samples) {
                 const dt = sample.t - meanT;
@@ -136,12 +129,10 @@
                 Stx += dt * (sample.x - meanX);
                 Sty += dt * (sample.y - meanY);
             }
-
             const vx = Stx / Stt;
             const vy = Sty / Stt;
             
-            // convert from minimap units to speed units (px/ms to u/s)
-            const raw2DSpeed = Math.sqrt(vx * vx + vy * vy) * 1000;
+            const raw2DSpeed = Math.sqrt(vx * vx + vy * vy) * 1000; // px/ms -> px/s
             const rawSpeed = raw2DSpeed * PIP_TO_UNITS; // minimap units -> u/s
             
             // smooth raw speed noise
@@ -190,30 +181,41 @@
 
                 // const speedometerDebug = root.FindChildTraverse("speedometerDebug");
                 // speedometerDebug.text = `
-                //     pos: (${x.toFixed(2)}, ${y.toFixed(2)})
+                //     raw pos: (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)})
+                //     fraction pos: (${x.toFixed(2)}, ${y.toFixed(2)})
                 //     raw minimap speed: (${raw2DSpeed.toFixed(10)} px/s)
                 //     max difference: (${maxDiff.toFixed(10)} u/s)
                 //     raw speed: (${rawSpeed.toFixed(2)} u/s)
                 //     smoothed speed: (${smoothedSpeed.toFixed(2)} u/s)
                 //     minimap size: (${minimapWidth}, ${minimapHeight})
-                //     gameplay hud size: (${gameplayHUD.actuallayoutwidth}, ${gameplayHUD.actuallayoutheight})
-                //     offset by 1px: (${gameplayHUD.actuallayoutheight <= 1080})
-                //     rgb: (${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})
+                //     using fallback: (${pos.x > 3.4e38 || pos.x < -3.4e38})
                 // `;
+                    // gameplay hud size: (${gameplayHUD.actuallayoutwidth}, ${gameplayHUD.actuallayoutheight})
+                    // offset by 1px: (${gameplayHUD.actuallayoutheight <= 1080})
+                    // rgb: (${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})
             }
         }
     }
 
-    function isConnectedToHideout(rootPanel) {
+    function _panelHasAllClasses(panel, classList) {
+        if (!panel.BHasClass) return false;
+        for (var i = 0; i < classList.length; i++) {
+            if (!panel.BHasClass(classList[i])) return false;
+        }
+        return true;
+    }
+
+    function _isConnectedToHideout(rootPanel) {
         const hud = rootPanel.FindChildTraverse("Hud");
         if (!hud || !hud.BHasClass) return false;
         return hud.BHasClass("connectedToHideout") || hud.BHasClass("InHideout");
     }
 
-    function findRoot(p) {
+    function _findRoot(p) {
         while (p.GetParent && p.GetParent()) p = p.GetParent();
         return p;
     }
 
     boot();
 })();
+// $.Msg("");
