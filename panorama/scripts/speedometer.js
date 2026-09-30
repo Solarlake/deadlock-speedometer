@@ -5,36 +5,17 @@
 
     // UI element IDs and classes
     const GAMEPLAY_HUD_ID = "gameplay_hud";
-    const SPEEDOMETER_LABEL_ID = "speedometerLabel";
-    const MINIMAP_CONE_CLASS = "client_cone_fov";
-    const MINIMAP_CLASS = "HudMinimapContainer";
+    const SPEEDOMETER_LABEL_ID = "MovementSpeedLabel";
     let root = null;
     let gameplayHUD = null;
     let speedometerLabel = null;
-    let cone = null;
-    let minimap = null;
-
-    // minimap position sampling
-    let pos_samples = [];
-    const MAX_SAMPLES = 7; // MAX_SAMPLES * TICK_INTERVAL == window time
-    const TELEPORT_THRESHOLD = 0.15; // pip units per second, above which assume the player teleported and reset the sample window
-
-    // speed smoothing parameters
-    const SPEED_EMA_TAU_SEC = 0.11; // EMA time constant: larger = smoother but laggier
-    const SPEED_DEADBAND_FRAC = 0.07; // fraction of current speed treated as noise, damped harder
-    const SPEED_REST_THRESHOLD = 100; // speed below which to snap straight to rest instead of decaying
-    let smoothedSpeed = null;
-    let lastSpeedTimeMs = null;
-    
-    // speed conversion
-    const PIP_TO_UNITS = 21500;
 
     // speedometer colors
     const TEXT_COLORS = [
         { speed: 0,     color: [235, 235, 235] },
-        { speed: 346,   color: [236, 232, 211] },
-        { speed: 546,   color: [255, 157, 45] },
-        { speed: 1000,  color: [255, 27, 53] },
+        { speed: 8.8,   color: [236, 232, 211] },
+        { speed: 14.7,   color: [255, 157, 45] },
+        { speed: 28,  color: [255, 27, 53] },
     ];
 
     function boot() {
@@ -46,12 +27,6 @@
 
         speedometerLabel = root.FindChildTraverse(SPEEDOMETER_LABEL_ID);
         if (!speedometerLabel) return $.Schedule(0.5, boot);
-        
-        cone = root.FindChildrenWithClassTraverse(MINIMAP_CONE_CLASS)[0];
-        if (!cone) return $.Schedule(0.5, boot);
-        
-        minimap = root.FindChildTraverse(MINIMAP_CLASS);
-        if (!minimap) return $.Schedule(0.5, boot);
 
         scheduleTick();
     }
@@ -68,147 +43,35 @@
     }
 
     function update() {
-        // don't show speedometer in hideout because it doesn't work
-        if (_isConnectedToHideout(root)) {
-            speedometerLabel.text = "";
-            return;
+        // speedometerLabel.style.x = gameplayHUD.actuallayoutheight <= 1080 ? "1px" : "0px"; // fix centering on 1080p and lower resolutions
+        const speed = parseFloat(speedometerLabel.text.slice(0, -1));
+        
+        if (!isFinite(speed)) return; // don't update if speed is invalid
+
+        // interpolate color
+        let r, g, b;
+        if (speed <= TEXT_COLORS[0].speed) {
+            [r, g, b] = TEXT_COLORS[0].color;
         }
-
-        // fix centering on 1080p and lower resolutions
-        speedometerLabel.style.x = gameplayHUD.actuallayoutheight <= 1080 ? "1px" : "0px";
-
-        // fallback to local player if cone doesn't exist (e.g. QOLLock with minimal minimap)
-        let pos = cone.GetPositionWithinWindow();
-        if (pos.x > 3.4e38 || pos.x < -3.4e38) {
-            let localPlayer = root.FindChildrenWithClassTraverse("localplayer")[0];
-            pos = localPlayer ? localPlayer.GetPositionWithinWindow() : { x: 0, y: 0 };
+        else if (speed >= TEXT_COLORS[TEXT_COLORS.length - 1].speed) {
+            [r, g, b] = TEXT_COLORS[TEXT_COLORS.length - 1].color;
+        }
+        else {
+            for (let i = 0; i < TEXT_COLORS.length - 1; i++) {
+                const a = TEXT_COLORS[i];
+                const c = TEXT_COLORS[i + 1];
+                if (speed <= c.speed) {
+                    const frac = (speed - a.speed) / (c.speed - a.speed);
+                    r = a.color[0] + (c.color[0] - a.color[0]) * frac;
+                    g = a.color[1] + (c.color[1] - a.color[1]) * frac;
+                    b = a.color[2] + (c.color[2] - a.color[2]) * frac;
+                    break;
+                }
+            }
         }
         
-        // sample the minimap position
-        const minimapWidth = minimap.actuallayoutwidth;
-        const minimapHeight = minimap.actuallayoutheight;
-        const t = Date.now ? Date.now() : (new Date()).getTime(); // ms
-        const x = pos.x / minimapWidth;
-        const y = pos.y / minimapHeight;
-        pos_samples.push({ t, x, y });
-        if (pos_samples.length > MAX_SAMPLES) {
-            pos_samples.shift();
-        }
-
-        // do the thing if there are at least 2 samples to work with
-        if (pos_samples.length >= 2) {
-            // get max difference between adjacent samples
-            let maxDiff = 0;
-            for (let i = 1; i < pos_samples.length; i++) {
-                const dx = pos_samples[i].x - pos_samples[i - 1].x;
-                const dy = pos_samples[i].y - pos_samples[i - 1].y;
-                const dt = (pos_samples[i].t - pos_samples[i - 1].t) / 1000.0;
-                const diff = Math.sqrt(dx * dx + dy * dy) / dt;
-                if (diff > maxDiff) {
-                    maxDiff = diff;
-                }
-            }
-            if (maxDiff > TELEPORT_THRESHOLD) {
-                pos_samples = [pos_samples[pos_samples.length - 1]]; // if the player teleported, reset the sample window to avoid a huge speed spike
-            }
-            
-            // least-squares regression to estimate velocity from minimap px samples
-            let meanT = 0, meanX = 0, meanY = 0;
-            for (const sample of pos_samples) {
-                meanT += sample.t;
-                meanX += sample.x;
-                meanY += sample.y;
-            }
-            meanT /= pos_samples.length;
-            meanX /= pos_samples.length;
-            meanY /= pos_samples.length;
-            let Stt = 0, Stx = 0, Sty = 0;
-            for (const sample of pos_samples) {
-                const dt = sample.t - meanT;
-                Stt += dt * dt;
-                Stx += dt * (sample.x - meanX);
-                Sty += dt * (sample.y - meanY);
-            }
-            const vx = Stx / Stt;
-            const vy = Sty / Stt;
-            
-            const raw2DSpeed = Math.sqrt(vx * vx + vy * vy) * 1000; // px/ms -> px/s
-            const rawSpeed = raw2DSpeed * PIP_TO_UNITS; // minimap units -> u/s
-            
-            // smooth raw speed noise
-            let dtSmoothSec = (lastSpeedTimeMs !== null) ? (t - lastSpeedTimeMs) / 1000.0 : TICK_INTERVAL;
-            if (!(dtSmoothSec > 0) || dtSmoothSec > 1.0) dtSmoothSec = TICK_INTERVAL;
-
-            if (smoothedSpeed === null || !isFinite(smoothedSpeed)) {
-                smoothedSpeed = rawSpeed; // first reading: snap instead of easing in from 0
-            } else {
-                let alpha = 1.0 - Math.exp(-dtSmoothSec / SPEED_EMA_TAU_SEC);
-                const sdelta = rawSpeed - smoothedSpeed;
-
-                if (Math.abs(sdelta) < smoothedSpeed * SPEED_DEADBAND_FRAC) {
-                    alpha *= 0.25; // within the deadband, damp harder so a steady speed reads as a steady number
-                }
-                if (rawSpeed < SPEED_REST_THRESHOLD) alpha = 1.0; // snap to rest
-
-                smoothedSpeed = smoothedSpeed + (alpha * sdelta);
-            }
-            lastSpeedTimeMs = t;
-
-            // interpolate color
-            if (isFinite(smoothedSpeed)) {
-                let r, g, b;
-                if (smoothedSpeed <= TEXT_COLORS[0].speed) {
-                    [r, g, b] = TEXT_COLORS[0].color;
-                } else if (smoothedSpeed >= TEXT_COLORS[TEXT_COLORS.length - 1].speed) {
-                    [r, g, b] = TEXT_COLORS[TEXT_COLORS.length - 1].color;
-                } else {
-                    for (let i = 0; i < TEXT_COLORS.length - 1; i++) {
-                        const a = TEXT_COLORS[i];
-                        const c = TEXT_COLORS[i + 1];
-                        if (smoothedSpeed <= c.speed) {
-                            const frac = (smoothedSpeed - a.speed) / (c.speed - a.speed);
-                            r = a.color[0] + (c.color[0] - a.color[0]) * frac;
-                            g = a.color[1] + (c.color[1] - a.color[1]) * frac;
-                            b = a.color[2] + (c.color[2] - a.color[2]) * frac;
-                            break;
-                        }
-                    }
-                }
-                
-                const toHex = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0");
-                speedometerLabel.style.color = `#${toHex(r)}${toHex(g)}${toHex(b)}FF`;
-                speedometerLabel.text = smoothedSpeed.toFixed(0);
-
-                // const speedometerDebug = root.FindChildTraverse("speedometerDebug");
-                // speedometerDebug.text = `
-                //     raw pos: (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)})
-                //     fraction pos: (${x.toFixed(2)}, ${y.toFixed(2)})
-                //     raw minimap speed: (${raw2DSpeed.toFixed(10)} px/s)
-                //     max difference: (${maxDiff.toFixed(10)} u/s)
-                //     raw speed: (${rawSpeed.toFixed(2)} u/s)
-                //     smoothed speed: (${smoothedSpeed.toFixed(2)} u/s)
-                //     minimap size: (${minimapWidth}, ${minimapHeight})
-                //     using fallback: (${pos.x > 3.4e38 || pos.x < -3.4e38})
-                // `;
-                    // gameplay hud size: (${gameplayHUD.actuallayoutwidth}, ${gameplayHUD.actuallayoutheight})
-                    // offset by 1px: (${gameplayHUD.actuallayoutheight <= 1080})
-                    // rgb: (${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})
-            }
-        }
-    }
-
-    function _panelHasAllClasses(panel, classList) {
-        if (!panel.BHasClass) return false;
-        for (var i = 0; i < classList.length; i++) {
-            if (!panel.BHasClass(classList[i])) return false;
-        }
-        return true;
-    }
-
-    function _isConnectedToHideout(rootPanel) {
-        const hud = rootPanel.FindChildTraverse("Hud");
-        if (!hud || !hud.BHasClass) return false;
-        return hud.BHasClass("connectedToHideout") || hud.BHasClass("InHideout");
+        const toHex = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0").toUpperCase();
+        speedometerLabel.style.color = `#${toHex(r)}${toHex(g)}${toHex(b)}FF`;   
     }
 
     function _findRoot(p) {

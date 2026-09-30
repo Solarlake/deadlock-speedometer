@@ -1,0 +1,163 @@
+/* Prettified by Source 2 Viewer 17.0.0.0 - https://valveresourceformat.github.io */
+
+CitadelHudMovementSpeed
+{
+	transition-property: position;
+	transition-duration: 0.2s;
+	transition-timing-function: ease-in-out;
+	horizontal-align: center;
+	vertical-align: center;
+	flow-children: down;
+    margin-top: 84px;
+    /* margin-top: 226px; */
+	width: 300px;
+	visibility: collapse;
+}
+
+CitadelHudMovementSpeed.showMovespeed
+{
+	visibility: visible;
+}
+
+CitadelHudMovementSpeed.showMovespeed.gShopOpen
+{
+	visibility: collapse;
+}
+
+.SpeedometerEnabled CitadelHudMovementSpeed
+{
+	visibility: visible;
+}
+
+.SpeedometerEnabled CitadelHudMovementSpeed .movementSpeedGraphRow
+{
+	visibility: collapse;
+}
+
+.SpeedometerEnabled CitadelHudMovementSpeed.gShopOpen
+{
+	visibility: collapse;
+}
+
+.connectedToHeroTesting.SpeedometerEnabled CitadelHudMovementSpeed.showMovespeed .movementSpeedGraphRow
+{
+	visibility: visible;
+}
+
+#MovementSpeed
+{
+	horizontal-align: center;
+	width: 80px;
+	height: 10px;
+	overflow: clip;
+	background-color: #00000000;
+}
+
+.movementSpeedGraphRow
+{
+	flow-children: right;
+	width: 100%;
+	height: 80px;
+	margin-top: 4px;
+}
+
+#MovementSpeedGraphAxis
+{
+	width: 44px;
+	height: 100%;
+}
+
+#MovementSpeedGraphAxis .axisLabel
+{
+	font-family: sans;
+	font-size: 11px;
+	color: #FFFFFF00;
+	horizontal-align: center;
+}
+
+.axisLabelTop
+{
+	vertical-align: top;
+}
+
+.axisLabelBottom
+{
+	vertical-align: bottom;
+}
+
+#MovementSpeedGraph
+{
+	width: fill-parent-flow( 1.0 );
+	height: 100%;
+	background-color: #00000000;
+	border: 1px solid #FFFFFF00;
+}
+
+#MovementSpeed .ProgressBarLeft
+{
+	height: 100%;
+	width: 100%;
+	background-color: gradient( linear, 0% 0%, 0% 100%, from( #FFFFFF00 ), to( #FFFFFF00 ) );
+	border-right: 3px solid #FFFFFF00;
+}
+
+#MovementSpeed .ProgressBarRight
+{
+	height: 100%;
+	width: 100%;
+	background-color: #00000000;
+}
+
+#MovementSpeedCurrent,#MovementSpeedLabel
+{
+	font-family: block;
+	color: white;
+	font-size: 14px;
+}
+
+.isNegative #MovementSpeedLabel
+{
+	color: #ff0000;
+}
+
+.isNegative #MovementSpeed .ProgressBarLeft
+{
+	border-right: 3px solid #ff000000;
+	background-color: gradient( linear, 0% 0%, 0% 100%, from( #59000000 ), to( #9f000000 ) );
+}
+
+.isPositive #MovementSpeedLabel
+{
+	color: #00ff1e;
+}
+
+.isPositive #MovementSpeed .ProgressBarLeft
+{
+	border-right: 3px solid #00ff1e00;
+	background-color: gradient( linear, 0% 0%, 0% 100%, from( #00630c00 ), to( #00be1600 ) );
+}
+
+.movementSpeedContainer
+{
+	flow-children: right;
+	horizontal-align: center;
+	text-align: center;
+	width: 80px;
+}
+
+.movementSpeedContainer Label
+{
+	horizontal-align: center;
+	font-weight: bold;
+	font-family: block;
+}
+
+#BaseMovementSpeedPanel
+{
+	horizontal-align: center;
+	width: 3px;
+	height: 100%;
+	background-color: #FFFFFF00;
+	z-index: 99;
+}
+

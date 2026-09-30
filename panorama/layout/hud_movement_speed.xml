@@ -1,0 +1,29 @@
+<!-- xml reconstructed by Source 2 Viewer 17.0.0.0 - https://valveresourceformat.github.io -->
+<root>
+	<styles>
+		<include src="s2r://panorama/styles/citadel_base_styles.vcss" />
+		<include src="s2r://panorama/styles/hud_common.vcss" />
+		<include src="s2r://panorama/styles/hud_movement_speed.vcss" />
+	</styles>
+    <scripts>
+        <include src="s2r://panorama/scripts/speedometer.vjs_c" />
+    </scripts>
+	<CitadelHudMovementSpeed hittest="false">
+		<GlobalClassListener id="movespeed_container" hittest="false" classes="gShopOpen" />
+		<Panel class="movementSpeedContainer">
+			<Label id="MovementSpeedCurrent" text="" />
+			<Label id="MovementSpeedLabel" text="{s:movement_speed}" />
+		</Panel>
+		<ProgressBar id="MovementSpeed">
+			<Panel id="BaseMovementSpeedPanel" />
+		</ProgressBar>
+		<Panel class="movementSpeedGraphRow">
+			<Panel id="MovementSpeedGraphAxis">
+				<Label id="MovementSpeedAxisMax" class="axisLabel axisLabelTop" text="{s:axis_speed}" />
+				<Label id="MovementSpeedAxisBase" class="axisLabel axisLabelBase" text="{s:axis_speed}" />
+				<Label id="MovementSpeedAxisMin" class="axisLabel axisLabelBottom" text="{s:axis_speed}" />
+			</Panel>
+			<UICanvas id="MovementSpeedGraph" hittest="false" />
+		</Panel>
+	</CitadelHudMovementSpeed>
+</root>
