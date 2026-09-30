@@ -48,7 +48,6 @@
         
         if (!isFinite(speed)) return; // don't update if speed is invalid
 
-        // interpolate color
         let r, g, b;
         if (speed <= TEXT_COLORS[0].speed) {
             [r, g, b] = TEXT_COLORS[0].color;
@@ -71,7 +70,8 @@
         }
         
         const toHex = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0").toUpperCase();
-        speedometerLabel.style.color = `#${toHex(r)}${toHex(g)}${toHex(b)}FF`;   
+        speedometerLabel.style.color = `#${toHex(r)}${toHex(g)}${toHex(b)}FF`;
+        // speedometerLabel.style.color = "#ebebebff";
     }
 
     function _findRoot(p) {
