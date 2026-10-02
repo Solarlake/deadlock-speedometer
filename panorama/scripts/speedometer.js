@@ -6,9 +6,15 @@
     // UI element IDs and classes
     const GAMEPLAY_HUD_ID = "gameplay_hud";
     const SPEEDOMETER_LABEL_ID = "MovementSpeedLabel";
+    const SPEEDOMETER_CURRENT_ID = "MovementSpeedCurrent";
     let root = null;
     let gameplayHUD = null;
     let speedometerLabel = null;
+    let speedometerCurrent = null;
+
+    // units
+    let unit = 0;
+    const upm = 39.36; // 1 meter = 39.36 hammer units
 
     // speedometer colors
     const TEXT_COLORS = [
@@ -28,6 +34,13 @@
         speedometerLabel = root.FindChildTraverse(SPEEDOMETER_LABEL_ID);
         if (!speedometerLabel) return $.Schedule(0.5, boot);
 
+        speedometerCurrent = root.FindChildTraverse(SPEEDOMETER_CURRENT_ID);
+        if (!speedometerCurrent) return $.Schedule(0.5, boot);
+
+        speedometerCurrent.SetPanelEvent("onactivate", () => {
+            unit = (unit + 1) % 4;
+        });
+
         scheduleTick();
     }
 
@@ -43,11 +56,9 @@
     }
 
     function update() {
-        // speedometerLabel.style.x = gameplayHUD.actuallayoutheight <= 1080 ? "1px" : "0px"; // fix centering on 1080p and lower resolutions
         const speed = parseFloat(speedometerLabel.text.slice(0, -1));
-        
         if (!isFinite(speed)) return; // don't update if speed is invalid
-
+        
         let r, g, b;
         if (speed <= TEXT_COLORS[0].speed) {
             [r, g, b] = TEXT_COLORS[0].color;
@@ -69,9 +80,26 @@
             }
         }
         
-        const toHex = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0").toUpperCase();
-        speedometerLabel.style.color = `#${toHex(r)}${toHex(g)}${toHex(b)}FF`;
-        // speedometerLabel.style.color = "#ebebebff";
+        speedometerCurrent.style.x = gameplayHUD.actuallayoutheight <= 1080 ? "1px" : "0px"; // fix centering on 1080p and lower resolutions
+        
+        switch (unit) {
+            case 0:
+                speedometerCurrent.text = `${speed.toFixed(1)}m`; // m/s with unit
+                break;
+            case 1:
+                speedometerCurrent.text = `${speed.toFixed(1)}`; // m/s no unit
+                break;
+            case 2:
+                speedometerCurrent.text = `${(Math.round(speed * upm))}u`; // hammer units with unit
+                break;
+            case 3:
+                speedometerCurrent.text = `${(Math.round(speed * upm))}`; // hammer units no unit
+                break;
+        }
+
+        const toHex = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0");
+        speedometerCurrent.style.color = `#${toHex(r)}${toHex(g)}${toHex(b)}ff`;
+        // speedometerCurrent.style.color = "#ebebebff";
     }
 
     function _findRoot(p) {
